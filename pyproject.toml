@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "domain-hunter"
+version = "1.0.0"
+description = "全自動過期域名篩選與分析工具 — Automated expired domain evaluation pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Johnson Zhang"}]
+
+dependencies = [
+    "aiohttp>=3.9,<4",
+    "beautifulsoup4>=4.12",
+    "click>=8.1",
+    "colorama>=0.4",
+    "dnspython>=2.4",
+    "Jinja2>=3.1",
+    "lxml>=5.0",
+    "python-dotenv>=1.0",
+    "python-whois>=0.9",
+    "rich>=13.0",
+    "tldextract>=5.0",
+    "aiohttp-retry>=2.8",
+]
+
+[project.scripts]
+domain-hunter = "domain_hunter.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

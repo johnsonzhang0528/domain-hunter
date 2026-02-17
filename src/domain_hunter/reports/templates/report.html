@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Domain Hunter — 分析報告</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149;
+    --blue: #58a6ff; --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.6; padding: 20px;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+
+  header {
+    text-align: center; padding: 30px 0; border-bottom: 1px solid var(--border);
+    margin-bottom: 30px;
+  }
+  header h1 { font-size: 2em; margin-bottom: 8px; }
+  header .meta { color: var(--muted); font-size: 0.9em; }
+
+  .stats {
+    display: flex; gap: 16px; justify-content: center; margin: 20px 0 30px;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 24px; text-align: center; min-width: 120px;
+  }
+  .stat-card .num { font-size: 2em; font-weight: 700; }
+  .stat-card .label { color: var(--muted); font-size: 0.85em; }
+  .stat-card.buy .num { color: var(--green); }
+  .stat-card.maybe .num { color: var(--yellow); }
+  .stat-card.reject .num { color: var(--red); }
+
+  .domain-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 24px; overflow: hidden;
+  }
+  .domain-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; cursor: pointer; user-select: none;
+  }
+  .domain-header:hover { background: rgba(255,255,255,0.03); }
+  .domain-name { font-size: 1.3em; font-weight: 600; }
+  .domain-score {
+    font-size: 1.5em; font-weight: 700; min-width: 60px; text-align: center;
+  }
+  .verdict {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    font-size: 0.85em; font-weight: 600;
+  }
+  .verdict.buy { background: rgba(63,185,80,0.15); color: var(--green); }
+  .verdict.maybe { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .verdict.reject { background: rgba(248,81,73,0.15); color: var(--red); }
+
+  .domain-details { padding: 0 24px 24px; display: none; }
+  .domain-card.open .domain-details { display: block; }
+
+  .detail-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px; margin-top: 16px;
+  }
+  .detail-section {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+  }
+  .detail-section h3 {
+    font-size: 0.95em; color: var(--blue); margin-bottom: 10px;
+    border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .detail-section ul { list-style: none; padding: 0; }
+  .detail-section li { padding: 3px 0; font-size: 0.9em; }
+  .detail-section li::before { content: '•'; color: var(--muted); margin-right: 8px; }
+
+  .score-bar {
+    display: flex; align-items: center; gap: 8px; margin: 4px 0;
+  }
+  .score-bar .label { min-width: 90px; font-size: 0.85em; color: var(--muted); }
+  .score-bar .bar {
+    flex: 1; height: 8px; background: var(--border); border-radius: 4px;
+    overflow: hidden;
+  }
+  .score-bar .fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  .score-bar .val { min-width: 40px; text-align: right; font-size: 0.85em; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .tag {
+    font-size: 0.78em; padding: 2px 8px; border-radius: 12px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .tag.bad { border-color: var(--red); color: var(--red); }
+  .tag.good { border-color: var(--green); color: var(--green); }
+
+  .reason {
+    font-size: 0.88em; padding: 4px 0;
+  }
+  .reason.negative { color: var(--red); }
+  .reason.negative::before { content: '✗ '; }
+  .reason.positive { color: var(--green); }
+  .reason.positive::before { content: '✓ '; }
+
+  .toggle-arrow {
+    font-size: 1.2em; color: var(--muted);
+    transition: transform 0.2s;
+  }
+  .domain-card.open .toggle-arrow { transform: rotate(90deg); }
+
+  @media (max-width: 768px) {
+    .detail-grid { grid-template-columns: 1fr; }
+    .domain-header { flex-wrap: wrap; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🔍 Domain Hunter — 分析報告</h1>
+    <div class="meta">生成時間: {{ generated_at }} | 共分析 {{ total }} 個域名</div>
+  </header>
+
+  <div class="stats">
+    <div class="stat-card buy">
+      <div class="num">{{ buy_count }}</div>
+      <div class="label">✅ 推薦購買</div>
+    </div>
+    <div class="stat-card maybe">
+      <div class="num">{{ maybe_count }}</div>
+      <div class="label">⚠️ 需進一步評估</div>
+    </div>
+    <div class="stat-card reject">
+      <div class="num">{{ reject_count }}</div>
+      <div class="label">❌ 不建議</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{ total }}</div>
+      <div class="label">總計</div>
+    </div>
+  </div>
+
+  {% for r in reports %}
+  <div class="domain-card" id="card-{{ loop.index }}">
+    <div class="domain-header" onclick="this.parentElement.classList.toggle('open')">
+      <div>
+        <span class="domain-name">{{ r.domain }}</span>
+        <span class="verdict {{ r.verdict.value|lower }}">{{ r.verdict.value }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="domain-score" style="color:{% if r.total_score >= 75 %}var(--green){% elif r.total_score >= 50 %}var(--yellow){% else %}var(--red){% endif %}">
+          {{ "%.0f"|format(r.total_score) }}
+        </div>
+        <span class="toggle-arrow">▶</span>
+      </div>
+    </div>
+
+    <div class="domain-details">
+      <!-- Score breakdown -->
+      <div class="score-bar">
+        <span class="label">Wayback</span>
+        <div class="bar"><div class="fill" style="width:{{ r.wayback.score }}%;background:{% if r.wayback.score >= 70 %}var(--green){% elif r.wayback.score >= 40 %}var(--yellow){% else %}var(--red){% endif %}"></div></div>
+        <span class="val">{{ "%.0f"|format(r.wayback.score) }}</span>
+      </div>
+      <div class="score-bar">
+        <span class="label">反向連結</span>
+        <div class="bar"><div class="fill" style="width:{{ r.backlinks.score }}%;background:{% if r.backlinks.score >= 70 %}var(--green){% elif r.backlinks.score >= 40 %}var(--yellow){% else %}var(--red){% endif %}"></div></div>
+        <span class="val">{{ "%.0f"|format(r.backlinks.score) }}</span>
+      </div>
+      <div class="score-bar">
+        <span class="label">安全性</span>
+        <div class="bar"><div class="fill" style="width:{{ r.safety.score }}%;background:{% if r.safety.score >= 70 %}var(--green){% elif r.safety.score >= 40 %}var(--yellow){% else %}var(--red){% endif %}"></div></div>
+        <span class="val">{{ "%.0f"|format(r.safety.score) }}</span>
+      </div>
+
+      <div class="detail-grid">
+        <!-- Reasons -->
+        <div class="detail-section">
+          <h3>📋 分析摘要</h3>
+          {% for reason in r.rejection_reasons %}
+          <div class="reason negative">{{ reason }}</div>
+          {% endfor %}
+          {% for signal in r.positive_signals %}
+          <div class="reason positive">{{ signal }}</div>
+          {% endfor %}
+          {% if not r.rejection_reasons and not r.positive_signals %}
+          <div style="color:var(--muted);font-size:0.9em;">無特殊標記</div>
+          {% endif %}
+        </div>
+
+        <!-- Wayback -->
+        <div class="detail-section">
+          <h3>🕰️ Wayback Machine</h3>
+          <ul>
+            <li>快照數: {{ r.wayback.total_snapshots }}</li>
+            <li>首次出現: {{ r.wayback.first_seen or '—' }}</li>
+            <li>最後出現: {{ r.wayback.last_seen or '—' }}</li>
+            <li>活躍年份: {{ r.wayback.snapshot_years|length }}</li>
+            <li>語言: {{ r.wayback.languages_detected|join(', ') or '—' }}</li>
+          </ul>
+          {% if r.wayback.sample_titles %}
+          <div style="margin-top:8px;font-size:0.85em;color:var(--muted);">
+            <strong>網頁標題:</strong>
+            {% for t in r.wayback.sample_titles[:5] %}
+            <div style="padding:2px 0;">{{ t|truncate(80) }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if r.wayback.detected_categories %}
+          <div class="tags">
+            {% for cat in r.wayback.detected_categories %}
+            <span class="tag {% if cat in ['gambling','adult','pharma','malware','pbn_spam'] %}bad{% elif cat == 'niche_match' %}good{% endif %}">{{ cat }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Backlinks -->
+        <div class="detail-section">
+          <h3>🔗 反向連結</h3>
+          <ul>
+            <li>反連總數: {{ r.backlinks.total_backlinks }}</li>
+            <li>引用域名: {{ r.backlinks.referring_domains }}</li>
+            <li>垃圾比例: {{ "%.1f"|format(r.backlinks.spam_ratio * 100) }}%</li>
+            <li>PageRank: {{ "%.1f"|format(r.backlinks.page_rank) }}</li>
+          </ul>
+          {% if r.backlinks.spam_domains %}
+          <div style="margin-top:8px;font-size:0.85em;">
+            <strong style="color:var(--red);">垃圾域名:</strong>
+            {% for d in r.backlinks.spam_domains[:5] %}
+            <div style="color:var(--red);padding:2px 0;">{{ d }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- DNS / WHOIS -->
+        <div class="detail-section">
+          <h3>🌐 DNS / WHOIS</h3>
+          <ul>
+            <li>狀態: {% if r.dns.is_registered %}已註冊{% else %}未註冊 (可用){% endif %}</li>
+            <li>停放: {% if r.dns.is_parked %}是 ({{ r.dns.parking_provider }}){% else %}否{% endif %}</li>
+            <li>域名年齡: {{ r.whois.age_years or '—' }} 年</li>
+            <li>註冊商: {{ r.whois.registrar or '—' }}</li>
+            <li>建立日期: {{ r.whois.creation_date or '—' }}</li>
+            <li>到期日期: {{ r.whois.expiration_date or '—' }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+// Auto-open BUY cards
+document.querySelectorAll('.verdict.buy').forEach(el => {
+  el.closest('.domain-card').classList.add('open');
+});
+</script>
+
+</body>
+</html>
