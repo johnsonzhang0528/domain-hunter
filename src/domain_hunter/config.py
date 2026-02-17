@@ -21,10 +21,15 @@ GOOGLE_SAFE_BROWSING_KEY: str = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY", "")
 VIRUSTOTAL_API_KEY: str = os.getenv("VIRUSTOTAL_API_KEY", "")
 AHREFS_API_KEY: str = os.getenv("AHREFS_API_KEY", "")
 
+# ── ExpiredDomains.net session cookie ────────
+EXPIRED_DOMAINS_PHPSESSID: str = os.getenv("EXPIRED_DOMAINS_PHPSESSID", "")
+
 # ── Runtime tuning ───────────────────────────
 WAYBACK_MAX_SNAPSHOTS: int = int(os.getenv("WAYBACK_MAX_SNAPSHOTS", "10"))
 MAX_WORKERS: int = int(os.getenv("MAX_WORKERS", "5"))
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "30"))
+HUNT_MAX_DISCOVER: int = int(os.getenv("HUNT_MAX_DISCOVER", "100"))
+HUNT_MAX_DEEP_ANALYZE: int = int(os.getenv("HUNT_MAX_DEEP_ANALYZE", "30"))
 
 # ── Wayback Machine ─────────────────────────
 WAYBACK_CDX_URL = "https://web.archive.org/cdx/search/cdx"
